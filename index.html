@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Pikachu Sky Dash</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+ margin:0;
+ background:#70c5ce;
+ font-family:Arial, Helvetica, sans-serif;
+ overflow:hidden;
+}
+
+canvas{
+ display:block;
+ margin:auto;
+ background:#70c5ce;
+}
+
+#ui{
+ position:absolute;
+ width:100%;
+ top:0;
+ text-align:center;
+ color:white;
+}
+
+#title{
+ font-size:42px;
+ margin-top:40px;
+ font-weight:bold;
+}
+
+#score{
+ font-size:28px;
+ margin-top:20px;
+ display:none;
+}
+
+#coins{
+ font-size:18px;
+ display:none;
+}
+
+#leaderboard{
+ margin-top:10px;
+ font-size:16px;
+}
+
+#gameover{
+ display:none;
+ margin-top:20px;
+}
+
+button{
+ padding:12px 22px;
+ font-size:18px;
+ border:none;
+ border-radius:8px;
+ background:#ffcc00;
+ cursor:pointer;
+ margin-top:15px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+
+<div id="title">Pikachu Sky Dash ⚡</div>
+<div id="subtitle">Tap / Click / Space to Fly</div>
+
+<div id="score">Score: 0</div>
+<div id="coins">Coins: 0</div>
+
+<div id="leaderboard"></div>
+
+<div id="gameover">
+<h2>Game Over</h2>
+<div id="finalScore"></div>
+<button onclick="startGame()">Play Again</button>
+</div>
+
+</div>
+
+<canvas id="game" width="400" height="600"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let frames = 0;
+let score = 0;
+let coinsCollected = 0;
+let gameState = "start";
+
+const gravity = 0.5;
+const jump = -8;
+
+const flapSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+const coinSound = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
+const hitSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+
+const pikachuFrames = [];
+
+pikachuFrames[0] = new Image();
+pikachuFrames[0].src = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png";
+
+pikachuFrames[1] = new Image();
+pikachuFrames[1].src = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/25.png";
+
+const clouds = [];
+const hills = [];
+
+function spawnCloud(){
+ clouds.push({x:canvas.width,y:Math.random()*300,size:Math.random()*40+40});
+}
+
+function spawnHill(){
+ hills.push({x:canvas.width,height:Math.random()*80+40});
+}
+
+const pikachu = {
+ x:80,
+ y:200,
+ w:50,
+ h:50,
+ velocity:0,
+ frame:0,
+
+ draw(){
+  ctx.drawImage(pikachuFrames[this.frame],this.x,this.y,this.w,this.h);
+ },
+
+ update(){
+
+  this.velocity += gravity;
+  this.y += this.velocity;
+
+  if(frames % 10 === 0){
+   this.frame = this.frame ? 0 : 1;
+  }
+
+  if(this.y + this.h >= canvas.height){
+   endGame();
+  }
+
+ }
+};
+
+const pipes = {
+
+ position:[],
+ width:60,
+ gap:150,
+
+ draw(){
+
+  ctx.fillStyle="#2ecc71";
+
+  this.position.forEach(p=>{
+
+   ctx.fillRect(p.x,p.y,this.width,p.height);
+
+   ctx.fillRect(
+    p.x,
+    p.y + p.height + this.gap,
+    this.width,
+    canvas.height
+   );
+
+  });
+
+ },
+
+ update(){
+
+  if(frames % 100 === 0){
+
+   const height = Math.random()*250 + 50;
+
+   this.position.push({
+    x:canvas.width,
+    y:0,
+    height:height,
+    passed:false
+   });
+
+   spawnCoin();
+
+  }
+
+  this.position.forEach((p,i)=>{
+
+   p.x -= 2.5;
+
+   if(
+    pikachu.x < p.x + this.width &&
+    pikachu.x + pikachu.w > p.x &&
+    (pikachu.y < p.height || pikachu.y + pikachu.h > p.height + this.gap)
+   ){
+    hitSound.play();
+    endGame();
+   }
+
+   if(!p.passed && p.x + this.width < pikachu.x){
+    score++;
+    document.getElementById("score").innerText = "Score: " + score;
+    p.passed = true;
+   }
+
+   if(p.x + this.width < 0){
+    this.position.splice(i,1);
+   }
+
+  });
+
+ }
+
+};
+
+const coins = [];
+
+function spawnCoin(){
+ coins.push({
+  x:canvas.width,
+  y:Math.random()*400 + 50,
+  size:20
+ });
+}
+
+function drawCoins(){
+
+ ctx.fillStyle="gold";
+
+ coins.forEach(c=>{
+  ctx.beginPath();
+  ctx.arc(c.x,c.y,c.size/2,0,Math.PI*2);
+  ctx.fill();
+ });
+
+}
+
+function updateCoins(){
+
+ coins.forEach((c,i)=>{
+
+  c.x -= 2.5;
+
+  if(
+   pikachu.x < c.x + c.size &&
+   pikachu.x + pikachu.w > c.x &&
+   pikachu.y < c.y + c.size &&
+   pikachu.y + pikachu.h > c.y
+  ){
+
+   coinsCollected++;
+
+   coinSound.play();
+
+   document.getElementById("coins").innerText = "Coins: " + coinsCollected;
+
+   coins.splice(i,1);
+
+  }
+
+ });
+
+}
+
+function updateLeaderboard(){
+
+ let best = localStorage.getItem("pikachuHighScore") || 0;
+
+ if(score > best){
+  localStorage.setItem("pikachuHighScore",score);
+  best = score;
+ }
+
+ document.getElementById("leaderboard").innerText = "🏆 Best Score: " + best;
+
+}
+
+function startGame(){
+
+ score = 0;
+ coinsCollected = 0;
+ frames = 0;
+
+ pipes.position = [];
+ coins.length = 0;
+
+ pikachu.y = 200;
+ pikachu.velocity = 0;
+
+ gameState = "playing";
+
+ document.getElementById("title").style.display="none";
+ document.getElementById("subtitle").style.display="none";
+ document.getElementById("gameover").style.display="none";
+
+ document.getElementById("score").style.display="block";
+ document.getElementById("coins").style.display="block";
+
+ document.getElementById("score").innerText="Score: 0";
+ document.getElementById("coins").innerText="Coins: 0";
+
+}
+
+function endGame(){
+
+ if(gameState !== "playing") return;
+
+ gameState = "gameover";
+
+ updateLeaderboard();
+
+ document.getElementById("gameover").style.display="block";
+
+ document.getElementById("finalScore").innerText =
+ "Score: " + score + " | Coins: " + coinsCollected;
+
+}
+
+function jumpAction(){
+
+ if(gameState === "start"){
+  startGame();
+ }
+
+ if(gameState === "playing"){
+  pikachu.velocity = jump;
+  flapSound.play();
+ }
+
+}
+
+function drawClouds(){
+
+ ctx.fillStyle="white";
+
+ clouds.forEach(c=>{
+  ctx.beginPath();
+  ctx.arc(c.x,c.y,c.size,0,Math.PI*2);
+  ctx.fill();
+ });
+
+}
+
+function updateClouds(){
+
+ if(frames % 120 === 0){
+  spawnCloud();
+ }
+
+ clouds.forEach((c,i)=>{
+
+  c.x -= 1;
+
+  if(c.x < -50){
+   clouds.splice(i,1);
+  }
+
+ });
+
+}
+
+function drawHills(){
+
+ ctx.fillStyle="#6ab04c";
+
+ hills.forEach(h=>{
+  ctx.fillRect(h.x,canvas.height-h.height,80,h.height);
+ });
+
+}
+
+function updateHills(){
+
+ if(frames % 200 === 0){
+  spawnHill();
+ }
+
+ hills.forEach((h,i)=>{
+
+  h.x -= 1.2;
+
+  if(h.x < -100){
+   hills.splice(i,1);
+  }
+
+ });
+
+}
+
+function loop(){
+
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ updateClouds();
+ updateHills();
+
+ drawClouds();
+ drawHills();
+
+ if(gameState === "playing"){
+
+  pipes.update();
+  pikachu.update();
+  updateCoins();
+
+ }
+
+ pipes.draw();
+ drawCoins();
+ pikachu.draw();
+
+ frames++;
+
+ requestAnimationFrame(loop);
+
+}
+
+window.addEventListener("keydown",e=>{
+ if(e.code === "Space") jumpAction();
+});
+
+canvas.addEventListener("click",jumpAction);
+canvas.addEventListener("touchstart",jumpAction);
+
+updateLeaderboard();
+
+loop();
+
+</script>
+
+</body>
+</html>
